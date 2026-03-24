@@ -6,7 +6,7 @@ import ChatLayout from './components/ChatLayout'
 import AdminShell from './components/admin/AdminShell'
 import MemoryPanel from './components/admin/MemoryPanel'
 import CronsPanel from './components/admin/CronsPanel'
-import ProvidersPanel from './components/admin/ProvidersPanel'
+import ConfigPanel from './components/admin/ConfigPanel'
 import LiveSessionsPanel from './components/admin/LiveSessionsPanel'
 import { getGatewayUrl } from './lib/storage'
 
@@ -27,10 +27,10 @@ function AppRoutes() {
       <Route path="/chat" element={<ChatLayout />} />
       <Route path="/admin" element={<AdminShell />}>
         <Route index element={<Navigate to="/admin/memory" replace />} />
-        <Route path="memory"    element={<MemoryPanel />} />
-        <Route path="crons"     element={<CronsPanel />} />
-        <Route path="providers" element={<ProvidersPanel />} />
-        <Route path="sessions"  element={<LiveSessionsPanel />} />
+        <Route path="memory"   element={<MemoryPanel />} />
+        <Route path="crons"    element={<CronsPanel />} />
+        <Route path="config"   element={<ConfigPanel />} />
+        <Route path="sessions" element={<LiveSessionsPanel />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

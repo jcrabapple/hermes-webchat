@@ -1,15 +1,15 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { Brain, Clock, Server, Activity, ArrowLeft, Settings } from 'lucide-react'
+import { Brain, Clock, SlidersHorizontal, Activity, ArrowLeft, Settings } from 'lucide-react'
 import { useConnectionStatus } from '../../hooks/useConnectionStatus'
 import ConnectionBadge from '../ConnectionBadge'
 import { useState } from 'react'
 import SettingsModal from '../SettingsModal'
 
 const NAV_ITEMS = [
-  { to: '/admin/memory',    label: 'Memory',             icon: Brain   },
-  { to: '/admin/crons',     label: 'Cron Jobs',          icon: Clock   },
-  { to: '/admin/providers', label: 'Providers & Models', icon: Server  },
-  { to: '/admin/sessions',  label: 'Live Sessions',      icon: Activity },
+  { to: '/admin/memory',   label: 'Memory',        icon: Brain              },
+  { to: '/admin/crons',    label: 'Cron Jobs',     icon: Clock              },
+  { to: '/admin/config',   label: 'Configuration', icon: SlidersHorizontal  },
+  { to: '/admin/sessions', label: 'Live Sessions', icon: Activity           },
 ]
 
 export default function AdminShell() {
