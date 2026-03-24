@@ -1,65 +1,113 @@
-import { useMemo } from 'react'
+import { useState, type ReactNode } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import rehypeHighlight from 'rehype-highlight'
+import { Copy, Check } from 'lucide-react'
+import type { Components } from 'react-markdown'
 
 interface MarkdownRendererProps {
   content: string
+  isStreaming?: boolean
 }
 
-export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
-  const renderMarkdown = useMemo(() => {
-    // Escape HTML to prevent XSS
-    const escapeHtml = (unsafe: string) => {
-      return unsafe
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "'")
-    };
+function CodeBlock({ children, className }: { children: ReactNode; className?: string }) {
+  const [copied, setCopied] = useState(false)
+  const lang = className?.replace('language-', '') ?? 'plaintext'
+  const code = String(children).replace(/\n$/, '')
 
-    // Convert markdown to HTML
-    let html = escapeHtml(content);
-    
-    // Headers
-    html = html.replace(/^# (.*$)/gim, '<h1 class="text-2xl font-bold my-4 text-gray-900 dark:text-white">$1</h1>');
-    html = html.replace(/^## (.*$)/gim, '<h2 class="text-xl font-bold my-3 text-gray-900 dark:text-white">$1</h2>');
-    html = html.replace(/^### (.*$)/gim, '<h3 class="text-lg font-bold my-2 text-gray-900 dark:text-white">$1</h3>');
-    
-    // Bold and italic
-    html = html.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-gray-900 dark:text-white">$1</strong>');
-    html = html.replace(/\*(.*?)\*/g, '<em class="italic text-gray-900 dark:text-white">$1</em>');
-    
-    // Code blocks with syntax highlighting simulation
-    html = html.replace(/```(\w+)?\n([\s\S]*?)\n```/g, (_, lang, code) => {
-      return `<pre class=\"bg-gray-800 text-gray-200 p-4 rounded my-2 overflow-x-auto\"><code class=\"language-${lang || 'plaintext'}\">${code}</code><div class=\"text-xs text-gray-400 mt-1\">${lang || 'plaintext'}</div></pre>`;
-    });
-    
-    html = html.replace(/`(.*?)`/g, '<code class="bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded text-sm font-mono">$1</code>');
-    
-    // Lists
-    html = html.replace(/^\* (.*$)/gim, '<li class="ml-4 list-item">$1</li>');
-    html = html.replace(/(<li class="ml-4 list-item">[\s\S]*?<\/li>\n?)+/gm, '<ul class="list-disc my-2 pl-5">$&</ul>');
-    
-    // Numbered lists
-    html = html.replace(/^\d+\. (.*$)/gim, '<li class="ml-4 list-item">$1</li>');
-    html = html.replace(/(<li class="ml-4 list-item">[\s\S]*?<\/li>\n?)+/gm, '<ol class="list-decimal my-2 pl-5">$&</ol>');
-    
-    // Links
-    html = html.replace(/\[(.+?)\]\((.*?)\)/g, '<a href="$2" class="text-indigo-600 dark:text-indigo-400 hover:underline" target="_blank" rel="noopener noreferrer">$1</a>');
-    
-    // Line breaks to paragraphs
-    html = html.replace(/\n\n/g, '</p><p class="my-3">');
-    html = '<p class="my-3">' + html + '</p>';
-    
-    // Single line breaks
-    html = html.replace(/\n/g, '<br />');
-
-    return { __html: html };
-  }, [content]);
+  const copy = () => {
+    navigator.clipboard.writeText(code)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
 
   return (
-    <div 
-      className="markdown-content prose prose-indigo dark:prose-invert max-w-none"
-      dangerouslySetInnerHTML={renderMarkdown}
-    />
-  );
+    <div
+      className="relative rounded-lg my-3 overflow-hidden text-sm"
+      style={{
+        background: 'var(--bg-elevated)',
+        border: '1px solid var(--border-subtle)',
+      }}
+    >
+      <div
+        className="flex items-center justify-between px-4 py-2 border-b"
+        style={{
+          borderColor: 'var(--border-subtle)',
+          background: 'var(--bg-overlay)',
+        }}
+      >
+        <span className="text-xs font-mono" style={{ color: 'var(--text-muted)' }}>
+          {lang}
+        </span>
+        <button
+          onClick={copy}
+          className="flex items-center gap-1 text-xs rounded px-2 py-0.5 transition-colors hover:bg-white/10"
+          style={{ color: copied ? 'var(--success)' : 'var(--text-muted)' }}
+        >
+          {copied ? <Check size={12} /> : <Copy size={12} />}
+          {copied ? 'Copied' : 'Copy'}
+        </button>
+      </div>
+      <pre
+        className="overflow-x-auto p-4 m-0"
+        style={{ background: 'transparent', fontFamily: 'var(--mono)', fontSize: '0.85em' }}
+      >
+        <code className={className}>{children}</code>
+      </pre>
+    </div>
+  )
+}
+
+const components: Components = {
+  code({ className, children, ...props }) {
+    const isBlock = className?.startsWith('language-')
+    if (isBlock) {
+      return <CodeBlock className={className}>{children}</CodeBlock>
+    }
+    return (
+      <code
+        className="rounded px-1.5 py-0.5 text-sm"
+        style={{
+          background: 'var(--bg-elevated)',
+          color: 'var(--accent)',
+          fontFamily: 'var(--mono)',
+        }}
+        {...props}
+      >
+        {children}
+      </code>
+    )
+  },
+  pre({ children }) {
+    // Prevent double-wrapping — our CodeBlock already renders a <pre>
+    return <>{children}</>
+  },
+  a({ href, children }) {
+    return (
+      <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)' }}>
+        {children}
+      </a>
+    )
+  },
+  table({ children }) {
+    return (
+      <div className="overflow-x-auto my-3">
+        <table>{children}</table>
+      </div>
+    )
+  },
+}
+
+export default function MarkdownRenderer({ content, isStreaming }: MarkdownRendererProps) {
+  return (
+    <div className={`markdown-content${isStreaming ? ' streaming-cursor' : ''}`}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeHighlight]}
+        components={components}
+      >
+        {content}
+      </ReactMarkdown>
+    </div>
+  )
 }

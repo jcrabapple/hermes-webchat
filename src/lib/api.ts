@@ -1,190 +1,121 @@
-// Utility functions for connecting to Hermes Agent
+import type { SessionMessage, TokenUsage } from '../types'
+import { getGatewayUrl, getAuthToken } from './storage'
 
-const getGatewayUrl = (): string | null => {
-  return localStorage.getItem('hermes-gateway-url')
-}
-
-const getAuthToken = (): string | null => {
-  return localStorage.getItem('hermes-auth-token')
-}
-
-// Interface for Hermes message
-export interface HermesMessage {
-  id: string
-  role: 'user' | 'assistant' | 'system' | 'tool'
-  content: string
-  timestamp: string
-  model?: string
-  platform?: string
-  tokens?: number
-  toolCalls?: any[]
-  thinking?: string
-}
-
-// Interface for Hermes session
-export interface HermesSession {
-  id: string
-  title: string
-  createdAt: string
-  updatedAt: string
-  tokenUsage: number
-}
-
-// Send a message to Hermes Agent
-export const sendMessage = async (message: string, sessionId?: string): Promise<HermesMessage> => {
-  const gatewayUrl = getGatewayUrl()
-  const authToken = getAuthToken()
-  
-  if (!gatewayUrl) {
-    throw new Error('Gateway URL not configured')
+function authHeaders(): HeadersInit {
+  const token = getAuthToken()
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
   }
-  
-  const response = await fetch(`${gatewayUrl}/api/chat`, {
+}
+
+function toApiMessages(messages: SessionMessage[]): Array<{ role: string; content: string }> {
+  return messages.map(m => ({ role: m.role, content: m.content }))
+}
+
+// ── Streaming send ─────────────────────────────────────────────
+
+export interface StreamCallbacks {
+  onChunk: (delta: string) => void
+  onDone: (usage: TokenUsage | null) => void
+  onError: (err: Error) => void
+}
+
+export function streamMessage(
+  messages: SessionMessage[],
+  model: string,
+  maxTokens: number,
+  systemPrompt: string,
+  callbacks: StreamCallbacks,
+  signal: AbortSignal
+): void {
+  const gatewayUrl = getGatewayUrl()
+
+  const apiMessages = [
+    ...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []),
+    ...toApiMessages(messages),
+  ]
+
+  fetch(`${gatewayUrl}/v1/chat/completions`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(authToken && { 'Authorization': `Bearer ${authToken}` })
-    },
+    headers: authHeaders(),
+    signal,
     body: JSON.stringify({
-      message,
-      sessionId
+      model,
+      messages: apiMessages,
+      stream: true,
+      max_tokens: maxTokens,
+    }),
+  })
+    .then(async response => {
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}))
+        throw new Error(`${response.status}: ${err?.error?.message ?? response.statusText}`)
+      }
+      if (!response.body) throw new Error('Response body is null')
+
+      const reader = response.body.pipeThrough(new TextDecoderStream()).getReader()
+      let buffer = ''
+      let usage: TokenUsage | null = null
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += value
+        const parts = buffer.split('\n\n')
+        buffer = parts.pop() ?? ''
+
+        for (const part of parts) {
+          const line = part.trim()
+          if (!line.startsWith('data: ')) continue
+          const data = line.slice(6).trim()
+          if (data === '[DONE]') continue
+
+          try {
+            const json = JSON.parse(data)
+            const delta = json.choices?.[0]?.delta?.content
+            if (delta) callbacks.onChunk(delta)
+
+            // Capture usage if present (some servers send on final chunk)
+            if (json.usage) {
+              usage = {
+                promptTokens: json.usage.prompt_tokens,
+                completionTokens: json.usage.completion_tokens,
+                totalTokens: json.usage.total_tokens,
+              }
+            }
+          } catch {
+            // skip malformed chunks
+          }
+        }
+      }
+
+      callbacks.onDone(usage)
     })
-  })
-  
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`)
-  }
-  
-  return await response.json()
+    .catch(err => {
+      if (err.name !== 'AbortError') {
+        callbacks.onError(err instanceof Error ? err : new Error(String(err)))
+      }
+    })
 }
 
-// Get sessions from Hermes Agent
-export const getSessions = async (): Promise<HermesSession[]> => {
-  const gatewayUrl = getGatewayUrl()
-  const authToken = getAuthToken()
-  
-  if (!gatewayUrl) {
-    throw new Error('Gateway URL not configured')
-  }
-  
-  const response = await fetch(`${gatewayUrl}/api/sessions`, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(authToken && { 'Authorization': `Bearer ${authToken}` })
-    }
-  })
-  
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`)
-  }
-  
-  return await response.json()
-}
+// ── Connection test ────────────────────────────────────────────
 
-// Create a new session
-export const createSession = async (title: string): Promise<HermesSession> => {
+export async function testConnection(): Promise<{ ok: boolean; latencyMs: number; error?: string }> {
   const gatewayUrl = getGatewayUrl()
-  const authToken = getAuthToken()
-  
-  if (!gatewayUrl) {
-    throw new Error('Gateway URL not configured')
-  }
-  
-  const response = await fetch(`${gatewayUrl}/api/sessions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(authToken && { 'Authorization': `Bearer ${authToken}` })
-    },
-    body: JSON.stringify({ title })
-  })
-  
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`)
-  }
-  
-  return await response.json()
-}
-
-// WebSocket connection for real-time updates
-export const connectWebSocket = (
-  onMessage: (data: any) => void, 
-  onError?: (error: any) => void,
-  onClose?: () => void
-) => {
-  const gatewayUrl = getGatewayUrl()
-  const authToken = getAuthToken()
-  
-  if (!gatewayUrl) {
-    throw new Error('Gateway URL not configured')
-  }
-  
-  // Convert HTTP URL to WebSocket URL
-  const wsProtocol = gatewayUrl.startsWith('https') ? 'wss' : 'ws'
-  const baseUrl = gatewayUrl.replace(/^https?:\/\//, '')
-  const wsUrl = `${wsProtocol}://${baseUrl}/api/ws`
-  
-  // Create WebSocket with authentication
-  let ws: WebSocket
-  if (authToken) {
-    // Pass token as query parameter for better compatibility
-    const urlWithAuth = `${wsUrl}?token=${encodeURIComponent(authToken)}`
-    ws = new WebSocket(urlWithAuth)
-  } else {
-    ws = new WebSocket(wsUrl)
-  }
-  
-  ws.onopen = () => {
-    console.log('WebSocket connection established')
-  }
-  
-  ws.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data)
-      onMessage(data)
-    } catch (error) {
-      console.error('Error parsing WebSocket message:', error)
+  const start = Date.now()
+  try {
+    const res = await fetch(`${gatewayUrl}/v1/models`, {
+      headers: authHeaders(),
+      signal: AbortSignal.timeout(5000),
+    })
+    return { ok: res.ok, latencyMs: Date.now() - start }
+  } catch (err) {
+    return {
+      ok: false,
+      latencyMs: Date.now() - start,
+      error: err instanceof Error ? err.message : String(err),
     }
   }
-  
-  ws.onerror = (error) => {
-    console.error('WebSocket error:', error)
-    if (onError) {
-      onError(error)
-    }
-  }
-  
-  ws.onclose = () => {
-    console.log('WebSocket connection closed')
-    if (onClose) {
-      onClose()
-    }
-  }
-  
-  return ws
-}
-
-// Get session messages
-export const getSessionMessages = async (sessionId: string): Promise<HermesMessage[]> => {
-  const gatewayUrl = getGatewayUrl()
-  const authToken = getAuthToken()
-  
-  if (!gatewayUrl) {
-    throw new Error('Gateway URL not configured')
-  }
-  
-  const response = await fetch(`${gatewayUrl}/api/sessions/${sessionId}/messages`, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(authToken && { 'Authorization': `Bearer ${authToken}` })
-    }
-  })
-  
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`)
-  }
-  
-  return await response.json()
 }

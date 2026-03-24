@@ -1,84 +1,117 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Eye, EyeOff } from 'lucide-react'
+import { setGatewayUrl, setAuthToken, getGatewayUrl, getAuthToken } from '../lib/storage'
 
-interface LoginScreenProps {
-  onLogin?: (url: string) => void
-}
-
-export default function LoginScreen({ onLogin }: LoginScreenProps) {
-  const [gatewayUrl, setGatewayUrl] = useState('')
-  const [authToken, setAuthToken] = useState('')
+export default function LoginScreen() {
+  const [gatewayUrl, setGatewayUrlState] = useState(() => getGatewayUrl())
+  const [authToken, setAuthTokenState] = useState(() => getAuthToken() ?? '')
+  const [showToken, setShowToken] = useState(false)
   const navigate = useNavigate()
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    
-    // Save to localStorage
-    localStorage.setItem('hermes-gateway-url', gatewayUrl)
-    if (authToken) {
-      localStorage.setItem('hermes-auth-token', authToken)
-    }
-    
-    // Navigate to chat interface or call onLogin callback
-    if (onLogin) {
-      onLogin(gatewayUrl)
-    } else {
-      navigate('/chat')
-    }
+    setGatewayUrl(gatewayUrl)
+    setAuthToken(authToken)
+    navigate('/chat')
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 p-4">
-      <div className="w-full max-w-md space-y-8">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
-            Sign in to Hermes Agent
-          </h2>
-          <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
-            Connect to your Hermes Agent gateway
+    <div
+      className="min-h-screen flex items-center justify-center p-4"
+      style={{ background: 'var(--bg-base)' }}
+    >
+      <div className="w-full max-w-sm">
+        {/* Logo */}
+        <div className="text-center mb-8">
+          <div
+            className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4"
+            style={{
+              background: 'var(--bg-elevated)',
+              border: '1px solid var(--border-default)',
+              fontSize: 36,
+            }}
+          >
+            ⚗️
+          </div>
+          <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
+            Hermes Agent
+          </h1>
+          <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
+            Connect to your gateway
           </p>
         </div>
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          <div className="space-y-4">
-            <div>
-              <label htmlFor="gateway-url" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Gateway URL
-              </label>
-              <input
-                id="gateway-url"
-                name="gateway-url"
-                type="url"
-                required
-                value={gatewayUrl}
-                onChange={(e) => setGatewayUrl(e.target.value)}
-                className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 dark:bg-gray-800 dark:text-white sm:text-sm"
-                placeholder="https://your-hermes-gateway.com"
-              />
-            </div>
-            <div>
-              <label htmlFor="auth-token" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Auth Token (optional)
-              </label>
-              <input
-                id="auth-token"
-                name="auth-token"
-                type="password"
-                value={authToken}
-                onChange={(e) => setAuthToken(e.target.value)}
-                className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 dark:bg-gray-800 dark:text-white sm:text-sm"
-                placeholder="••••••••"
-              />
-            </div>
+
+        {/* Form */}
+        <form
+          onSubmit={handleSubmit}
+          className="rounded-xl p-6 space-y-4"
+          style={{
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border-default)',
+          }}
+        >
+          <div>
+            <label
+              className="block text-sm font-medium mb-1.5"
+              style={{ color: 'var(--text-secondary)' }}
+            >
+              Gateway URL
+            </label>
+            <input
+              type="url"
+              required
+              value={gatewayUrl}
+              onChange={e => setGatewayUrlState(e.target.value)}
+              className="w-full rounded-lg px-3 py-2 text-sm outline-none border transition-colors"
+              style={{
+                background: 'var(--bg-elevated)',
+                borderColor: 'var(--border-default)',
+                color: 'var(--text-primary)',
+              }}
+              placeholder="http://127.0.0.1:8642"
+            />
           </div>
 
           <div>
-            <button
-              type="submit"
-              className="group relative flex w-full justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+            <label
+              className="block text-sm font-medium mb-1.5"
+              style={{ color: 'var(--text-secondary)' }}
             >
-              Connect to Hermes
-            </button>
+              Auth Token{' '}
+              <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(optional)</span>
+            </label>
+            <div className="relative">
+              <input
+                type={showToken ? 'text' : 'password'}
+                value={authToken}
+                onChange={e => setAuthTokenState(e.target.value)}
+                className="w-full rounded-lg px-3 py-2 pr-9 text-sm outline-none border transition-colors"
+                style={{
+                  background: 'var(--bg-elevated)',
+                  borderColor: 'var(--border-default)',
+                  color: 'var(--text-primary)',
+                }}
+                placeholder="Bearer token"
+              />
+              <button
+                type="button"
+                onClick={() => setShowToken(v => !v)}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                {showToken ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+            </div>
           </div>
+
+          <button
+            type="submit"
+            className="w-full py-2.5 rounded-lg text-sm font-semibold transition-all hover:opacity-90 active:scale-[0.98]"
+            style={{ background: 'var(--accent)', color: '#fff' }}
+          >
+            Connect
+          </button>
         </form>
       </div>
     </div>

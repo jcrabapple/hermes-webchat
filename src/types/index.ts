@@ -1,5 +1,3 @@
-// Hermes Agent Types
-
 export interface HermesMessage {
   id: string
   role: 'user' | 'assistant' | 'system' | 'tool'
@@ -15,27 +13,54 @@ export interface HermesMessage {
 export interface ToolCall {
   id: string
   name: string
-  arguments: Record<string, any>
-  result?: any
+  arguments: Record<string, unknown>
+  result?: unknown
+  status?: 'pending' | 'running' | 'done' | 'error'
 }
 
-export interface HermesSession {
+export interface Session {
   id: string
   title: string
   createdAt: string
   updatedAt: string
-  tokenUsage: number
+  messageCount: number
+}
+
+export interface SessionMessage {
+  id: string
+  sessionId: string
+  role: 'user' | 'assistant' | 'system'
+  content: string
+  timestamp: string
+  tokenCount?: number
+  toolCalls?: ToolCall[]
+  thinking?: string
 }
 
 export interface HermesSettings {
   theme: 'dark' | 'light' | 'oled' | 'system'
   accentColor: 'cyan' | 'violet' | 'emerald' | 'amber' | 'rose' | 'blue'
   model: string
-  maxIterations: number
+  maxTokens: number
+  systemPrompt: string
+}
+
+export interface TokenUsage {
+  promptTokens: number
+  completionTokens: number
+  totalTokens: number
 }
 
 export interface ConnectionStatus {
-  isConnected: boolean
-  isConnecting: boolean
+  state: 'unknown' | 'connected' | 'connecting' | 'disconnected' | 'error'
   error?: string
+  latencyMs?: number
+}
+
+export const DEFAULT_SETTINGS: HermesSettings = {
+  theme: 'dark',
+  accentColor: 'cyan',
+  model: 'hermes-agent',
+  maxTokens: 4096,
+  systemPrompt: '',
 }

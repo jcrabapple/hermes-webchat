@@ -1,30 +1,46 @@
-import { useState } from 'react'
-import { Routes, Route } from 'react-router-dom'
+import { useEffect } from 'react'
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
+import { SettingsProvider } from './context/SettingsContext'
 import LoginScreen from './components/LoginScreen'
-import ChatInterface from './components/ChatInterface'
+import ChatLayout from './components/ChatLayout'
+import AdminShell from './components/admin/AdminShell'
+import MemoryPanel from './components/admin/MemoryPanel'
+import CronsPanel from './components/admin/CronsPanel'
+import ProvidersPanel from './components/admin/ProvidersPanel'
+import LiveSessionsPanel from './components/admin/LiveSessionsPanel'
+import { getGatewayUrl } from './lib/storage'
 
-function App() {
-  const [gatewayUrl, setGatewayUrl] = useState('')
-  
-  // Check if we have a stored gateway URL
-  useState(() => {
-    const storedUrl = localStorage.getItem('hermes-gateway-url')
-    if (storedUrl) {
-      setGatewayUrl(storedUrl)
+function AppRoutes() {
+  const navigate = useNavigate()
+
+  // Auto-redirect to chat if gateway is already configured
+  useEffect(() => {
+    const url = getGatewayUrl()
+    if (url && window.location.pathname === '/') {
+      navigate('/chat', { replace: true })
     }
-  })
+  }, [navigate])
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <Routes>
-        <Route path="/" element={<LoginScreen onLogin={(url) => {
-          setGatewayUrl(url)
-          localStorage.setItem('hermes-gateway-url', url)
-        }} />} />
-        <Route path="/chat" element={<ChatInterface gatewayUrl={gatewayUrl} />} />
-      </Routes>
-    </div>
+    <Routes>
+      <Route path="/" element={<LoginScreen />} />
+      <Route path="/chat" element={<ChatLayout />} />
+      <Route path="/admin" element={<AdminShell />}>
+        <Route index element={<Navigate to="/admin/memory" replace />} />
+        <Route path="memory"    element={<MemoryPanel />} />
+        <Route path="crons"     element={<CronsPanel />} />
+        <Route path="providers" element={<ProvidersPanel />} />
+        <Route path="sessions"  element={<LiveSessionsPanel />} />
+      </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   )
 }
 
-export default App
+export default function App() {
+  return (
+    <SettingsProvider>
+      <AppRoutes />
+    </SettingsProvider>
+  )
+}
