@@ -1,73 +1,116 @@
-# React + TypeScript + Vite
+# Hermes Webchat
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A full-featured, dark-themed web chat interface for the Hermes Agent API server — an AI agent gateway with an OpenAI-compatible REST API.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Streaming responses** — real-time token-by-token output via SSE
+- **Session management** — create, rename, and delete chat sessions, all stored locally in the browser
+- **Markdown rendering** — full GFM support with syntax-highlighted code blocks and a one-click copy button
+- **Tool call display** — visualize agent tool invocations and their results inline in the conversation
+- **Themeable UI** — four themes (Dark, Light, OLED, System) and six accent colors
+- **Configurable model settings** — set the model name, max tokens (512–32 768), and a global system prompt
+- **Connection status indicator** — live badge shows gateway reachability and latency
+- **Auth token support** — optional Bearer token sent with every request
 
-## React Compiler
+## Requirements
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- Node.js 18+ and npm
+- A running Hermes Agent gateway that exposes an OpenAI-compatible REST API (e.g. at `http://127.0.0.1:8642`)
 
-## Expanding the ESLint configuration
+## Quick start
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+```bash
+# 1. Clone the repository
+git clone https://github.com/jcrabapple/hermes-webchat.git
+cd hermes-webchat
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+# 2. Install dependencies
+npm install
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+# 3. Start the development server
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Open [http://localhost:5173](http://localhost:5173) in your browser.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Connecting to your Hermes gateway
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+On the login screen, enter:
+
+| Field | Description |
+|---|---|
+| **Gateway URL** | Base URL of your Hermes Agent server, e.g. `http://127.0.0.1:8642` |
+| **Auth Token** | Bearer token if your gateway requires authentication (optional) |
+
+The app remembers your gateway URL across page reloads. To change it later, open **Settings → Connection**.
+
+> The app communicates with two endpoints on your gateway:
+> - `POST /v1/chat/completions` — streaming chat (SSE)
+> - `GET /v1/models` — connection health check
+
+## Production build
+
+```bash
+npm run build       # Type-checks and bundles to dist/
+npm run preview     # Serves the production build locally for verification
 ```
+
+Deploy the contents of `dist/` to any static file host (Nginx, Caddy, Vercel, Cloudflare Pages, etc.).
+
+### Example: serving with Nginx
+
+```nginx
+server {
+    listen 80;
+    root /var/www/hermes-webchat/dist;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
+```
+
+## Configuration
+
+All settings are stored in `localStorage` — there is no server-side config. Settings can be changed at any time from the **Settings** panel (gear icon in the sidebar).
+
+### Appearance
+
+| Setting | Options | Default |
+|---|---|---|
+| Theme | Dark, Light, OLED, System | Dark |
+| Accent color | Cyan, Violet, Emerald, Amber, Rose, Blue | Cyan |
+
+### Chat
+
+| Setting | Range / type | Default |
+|---|---|---|
+| Model | Any model name your gateway accepts | `hermes-agent` |
+| Max tokens | 512 – 32 768 | 4 096 |
+| System prompt | Free text | _(empty)_ |
+
+### Connection
+
+The gateway URL and auth token can be updated here without going back to the login screen. Use **Test Connection** to verify reachability before saving.
+
+## Data & privacy
+
+All data (sessions, messages, settings) is stored exclusively in your browser's `localStorage`. Nothing is sent to any third-party server — only to the Hermes gateway URL you configure.
+
+Incomplete responses (e.g. from a page refresh mid-stream) are discarded; only fully completed assistant messages are persisted.
+
+## Development
+
+```bash
+npm run dev     # Start Vite dev server with HMR at http://localhost:5173
+npm run lint    # Run ESLint
+npm run build   # Type-check (tsc) + production bundle
+```
+
+**Stack:** React 18, TypeScript, Vite, Tailwind CSS v4, react-markdown, highlight.js, react-router-dom v7, lucide-react.
+
+## License
+
+MIT
